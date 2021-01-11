@@ -2,4 +2,4 @@
 .vscode
 
 # Code
-.hex
+*.hex
