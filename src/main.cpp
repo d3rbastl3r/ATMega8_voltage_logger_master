@@ -14,6 +14,10 @@
 #include <util/delay.h>
 #include <util/twi.h>
 
+// TWI
+#define TWI_SLAVE_ADDR 0x04
+// TWI
+
 #define TX_BUFFER_SIZE 32
 
 #define COMMAND_PARAM_BUFFER_SIZE 2
@@ -22,6 +26,9 @@
 
 #define DEBUG_COMMAND_LED_ON 0xD1
 #define DEBUG_COMMAND_LED_OFF 0xD0
+
+#define COMMAND_DO_TWI_READ 0x03
+#define COMMAND_DO_TWI_WRITE 0x04
 
 struct TXBuffer {
     volatile uint8_t buffer[TX_BUFFER_SIZE];
@@ -40,6 +47,8 @@ void debugLedON();
 void debugLedOFF();
 
 void handleCommands();
+void handleTWIWriteCommand();
+void handleTWIReadCommand();
 // void handleReadVoltageCommand();
 void handleUnknownCommand();
 
@@ -84,11 +93,33 @@ void initUSART() {
     UCSRC |= (1<<URSEL)|(1<<UCSZ1)|(1<<UCSZ0);
 }
 
+/**
+ * Two-wire Serial Interface (Page 159)
+ */
+void initTWIMaster() {
+    // On F_CPU 1.843.200 for Baud 9600 set Prescaler = 1 and TWBR = 12 (Formula on Page 160)
+    // TWPS[1:0] - 0b00         | Set Prescaler value to 1 (Page 184)
+    // TWSR |= (0<<TWPS1) | (0<<TWPS0)
+    
+    // TWBR[7:0] - 0b00001100   | Set bit rate devision factor to 12
+    TWBR = 0b00001100;
+
+    // TWCD Described on Page 183
+    // TWIE - 0b1   | Enable the TWI Interrupt (Global interrupt is enabled)
+    TWCR |= (1<<TWIE);
+
+    // Activate internal pull-up resistors on SCL and SDA
+    // The internal pull-ups can in some systems eliminate the need for external ones.
+    PORTC |= (1<<PC4);
+    PORTC |= (1<<PC5);
+}
+
 void init() {
     cli();
 
     initUSART();
     initSPIMaster();
+    initTWIMaster();
 
      DDRB |= (1<<DDB0);  // LED on / off for debugging
 
@@ -119,13 +150,34 @@ int main(void) {
     return 0;
 }
 
+
+//  _____   _    _   _____            _____ _____ ___  ______ _____ 
+// |_   _| | |  | | |_   _|          /  ___|_   _/ _ \ | ___ \_   _|
+//   | |   | |  | |   | |    ______  \ `--.  | |/ /_\ \| |_/ / | |  
+//   | |   | |/\| |   | |   |______|  `--. \ | ||  _  ||    /  | |  
+//   | |   \  /\  /  _| |_           /\__/ / | || | | || |\ \  | |  
+//   \_/    \/  \/   \___/           \____/  \_/\_| |_/\_| \_| \_/  
+
+void twiSendSTARTCondition() {TWCR = (1<<TWINT) | (1<<TWSTA) | (1<<TWEN);}
+void twiSendSTOPCondition() {TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO);}
+
+void twiHandleError() {debugLedON();}
+
+//  _____   _    _   _____            _____ _____ ___________ 
+// |_   _| | |  | | |_   _|          /  ___|_   _|  _  | ___ \
+//   | |   | |  | |   | |    ______  \ `--.  | | | | | | |_/ /
+//   | |   | |/\| |   | |   |______|  `--. \ | | | | | |  __/ 
+//   | |   \  /\  /  _| |_           /\__/ / | | \ \_/ / |    
+//   \_/    \/  \/   \___/           \____/  \_/  \___/\_| 
+
 /**
  * Handle commands incoming via UART if available
  */
 void handleCommands() {
     switch(command) {
-        case 0x00:
-            // Skip if no command is available
+        case 0x00: // Skip NULL character
+        case 0x0A: // Skip new line character
+        case 0x0D: // Skip new line character
         break;
 
         case DEBUG_COMMAND_LED_ON:
@@ -134,6 +186,14 @@ void handleCommands() {
 
         case DEBUG_COMMAND_LED_OFF:
             debugLedOFF();
+        break;
+
+        case COMMAND_DO_TWI_WRITE:
+            handleTWIWriteCommand();
+        break;
+
+        case COMMAND_DO_TWI_READ:
+            handleTWIReadCommand();
         break;
 
         // case COMMAND_READ_VOLTAGE:
@@ -147,6 +207,37 @@ void handleCommands() {
     // Reset command
     command = 0;
     commandParamWPos = 0;
+}
+
+void handleTWIWriteCommand() {
+    twiSendSTARTCondition();
+    while (!(TWCR & (1<<TWINT))); // Wait for TWINT Flag set. This indicates that the START condition has been transmitted
+    if ((TWSR & TW_STATUS_MASK) != TW_START) { // Check value of TWI Status Register. Mask prescaler bits. If status different from START go to ERROR
+        twiHandleError();
+        return;
+    }
+
+    TWDR = (TWI_SLAVE_ADDR<<1) | TW_WRITE; // Load SLA_W into TWDR Register.
+    TWCR = (1<<TWINT) | (1<<TWEN); // Clear TWINT bit in TWCR to start transmission of address
+    while (!(TWCR & (1<<TWINT))); // Wait for TWINT Flag set. This indicates that the SLA+W has been transmitted, and ACK/NACK has been received.
+    if ((TWSR & TW_STATUS_MASK) != TW_MT_SLA_ACK) { // Check value of TWI Status Register. Mask prescaler bits. If status different from MT_SLA_ACK go to ERROR
+        twiHandleError();
+        return;
+    }
+
+    TWDR = 'L'; // Load DATA into TWDR Register.
+    TWCR = (1<<TWINT) | (1<<TWEN); // Clear TWINT bit in TWCR to start transmission of data
+    while (!(TWCR & (1<<TWINT))); // Wait for TWINT Flag set. This indicates that the DATA has been transmitted, and ACK/NACK has been received.
+    if ((TWSR & TW_STATUS_MASK) != TW_MT_DATA_ACK) { // Check value of TWI Status Register. Mask prescaler bits. If status different from MT_DATA_ACK go to ERROR
+        twiHandleError();
+        return;
+    }
+
+    twiSendSTOPCondition();
+}
+
+void handleTWIReadCommand() {
+
 }
 
 /**
@@ -258,6 +349,14 @@ void transmitFromTxBuffer() {
     if (txBuffer.posRead < txBuffer.posWrite) {
         UDR = txBuffer.buffer[txBuffer.posRead++];
     }
+}
+
+/**
+ * 2-wire Serial Interface
+ */
+ISR(TWI_vect) {
+    // TWINT - 0b1  | TWI Interrupt will be executed. This bit need to be cleared manually
+    TWCR &= ~(1<<TWINT);
 }
 
 /**
