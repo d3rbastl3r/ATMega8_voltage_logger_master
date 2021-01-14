@@ -139,7 +139,7 @@ int main(void) {
 
         // UART | Start / Init transmit data if available
         if (UCSRA & (1<<UDRE)) { // If buffer is empty
-            if (!txBuffer.transmitStarted()) {
+            if (!txBuffer.isStarted()) {
                 transmitFromTxIfAvailable();
             }
             // if (txBuffer.isReady) {
@@ -378,7 +378,6 @@ void handleUnknownCommand() {
  * Transmitting the next available byte via UART if data is available
  */
 void transmitFromTxIfAvailable() {
-    _delay_ms(100);
     if (txBuffer.isReady() && txBuffer.hasNext()) {
         UDR = txBuffer.getNext();
     }

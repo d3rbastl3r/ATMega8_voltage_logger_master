@@ -72,7 +72,7 @@ class SimpleDataBuffer {
          */
         uint8_t getNext() {
             // If no data is available, 0x00 will be returned
-            if (hasNext()) {
+            if (!hasNext()) {
                 return 0x00;
             }
 
@@ -105,7 +105,7 @@ class SimpleDataBuffer {
         /**
          * Returns true if the data transmit from the buffer is already started
          */
-        bool transmitStarted() {
+        bool isStarted() {
             return ready && readPos > 0;
         }
 
