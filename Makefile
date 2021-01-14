@@ -7,8 +7,17 @@ PROGRAMMER_ID=avrisp2
 
 AVRDUDE_FLAGS=-p $(PARTNO) -c $(PROGRAMMER_ID) -P $(PORT) -B $(BITCLOCK)
 
-$(PROJECT).hex: src/main.cpp
-	avr-gcc src/main.cpp -mmcu=$(MCU) -Os -o $(PROJECT).hex
+$(PROJECT).hex: ./obj/main.o ./obj/SimpleDataBuffer.o
+	avr-gcc ./obj/main.o ./obj/SimpleDataBuffer.o -mmcu=$(MCU) -Os -o $(PROJECT).hex
+
+./obj/main.o: ./src/main.cpp
+	avr-gcc -c ./src/main.cpp -mmcu=$(MCU) -Os -o ./obj/main.o
+
+./obj/SimpleDataBuffer.o: ./src/d3rbastl3r/SimpleDataBuffer.cpp
+	avr-gcc -c ./src/d3rbastl3r/SimpleDataBuffer.cpp -mmcu=$(MCU) -Os -o ./obj/SimpleDataBuffer.o
+
+clean:
+	rm ./obj/*.o $(PROJECT).hex
 
 hex_w:
 	avrdude $(AVRDUDE_FLAGS) -U flash:w:$(PROJECT).hex
