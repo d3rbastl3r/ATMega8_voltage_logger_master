@@ -20,17 +20,17 @@ $(PROJECT).hex: ./obj/main.o ./obj/SimpleDataBuffer.o
 clean:
 	rm ./obj/*.o $(PROJECT).hex
 
-hex_w:
+flash:
 	avrdude $(AVRDUDE_FLAGS) -U flash:w:$(PROJECT).hex
 
-eep_r:
+read_eeprom:
 	avrdude $(AVRDUDE_FLAGS) -U eeprom:r:$(PROJECT).eep:r
 
-eep_w:
+write_eeprom:
 	avrdude $(AVRDUDE_FLAGS) -U eeprom:w:$(PROJECT).eep:r
 
-fuse_r:
+read_fuses:
 	avrdude $(AVRDUDE_FLAGS) -U hfuse:r:$(PROJECT).hfuse:r -U lfuse:r:$(PROJECT).lfuse:r
 
-fuse_w:
+write_fuses:
 	avrdude $(AVRDUDE_FLAGS) -U hfuse:w:$(PROJECT).hfuse:r -U lfuse:w:$(PROJECT).lfuse:r
