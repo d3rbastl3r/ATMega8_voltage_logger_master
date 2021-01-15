@@ -9,6 +9,7 @@ AVRDUDE_FLAGS=-p $(PARTNO) -c $(PROGRAMMER_ID) -P $(PORT) -B $(BITCLOCK)
 
 $(PROJECT).hex: ./obj/main.o ./obj/SimpleDataBuffer.o
 	avr-gcc ./obj/main.o ./obj/SimpleDataBuffer.o -mmcu=$(MCU) -Os -o $(PROJECT).hex
+	avr-size -B $(PROJECT).hex
 
 ./obj/main.o: ./src/main.cpp
 	avr-gcc -c ./src/main.cpp -mmcu=$(MCU) -Os -o ./obj/main.o
