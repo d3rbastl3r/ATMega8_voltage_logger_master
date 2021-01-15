@@ -76,12 +76,14 @@ class SimpleDataBuffer {
                 return 0x00;
             }
 
+            uint8_t temp = buffer[readPos++];
+
             // Reset the buffer before sending the last byte
-            if (readPos+1 == writePos) {
+            if (readPos == writePos) {
                 reset();
             }
 
-            return buffer[readPos++];
+            return temp;
         }
 
         void setReady() {
