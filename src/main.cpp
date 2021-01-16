@@ -20,8 +20,6 @@
 #define TWI_SLAVE_ADDR 0x04
 // TWI
 
-#define COMMAND_PARAM_BUFFER_SIZE 2
-
 #define COMMAND_READ_VOLTAGE 0x01
 
 #define DEBUG_COMMAND_LED_ON 0xD1
@@ -30,9 +28,8 @@
 #define COMMAND_DO_TWI_READ 0x03
 #define COMMAND_DO_TWI_WRITE 0x04
 
-volatile uint8_t command = 0;
-volatile uint8_t commandParam[COMMAND_PARAM_BUFFER_SIZE];
-volatile uint8_t commandParamWPos = 0; // Write position for command parameter
+SimpleDataBuffer<32> txBuffer;
+SimpleDataBuffer<8> commandBuffer;
 
 void debugLedON();
 void debugLedOFF();
@@ -41,8 +38,7 @@ void handleCommands();
 void handleTWIWriteCommand();
 void handleTWIReadCommand();
 // void handleReadVoltageCommand();
-void handleUnknownCommand();
-
+void handleUnknownCommand(uint8_t command);
 
 void transmitFromTxIfAvailable();
 
@@ -115,8 +111,6 @@ void init() {
     sei();
 }
 
-SimpleDataBuffer<32> txBuffer;
-
 int main(void) {
     init();
 
@@ -158,39 +152,38 @@ void twiHandleError() {debugLedON();}
  * Handle commands incoming via UART if available
  */
 void handleCommands() {
-    switch(command) {
-        case 0x00: // Skip NULL character
-        case 0x0A: // Skip new line character
-        case 0x0D: // Skip new line character
-        break;
+    if (commandBuffer.hasNext()) {
+        uint8_t command = commandBuffer.getNext();
+        switch(command) {
+            case 0x00: // Skip NULL character
+            case 0x0A: // Skip new line character
+            case 0x0D: // Skip new line character
+            break;
 
-        case DEBUG_COMMAND_LED_ON:
-            debugLedON();
-        break;
+            case DEBUG_COMMAND_LED_ON:
+                debugLedON();
+            break;
 
-        case DEBUG_COMMAND_LED_OFF:
-            debugLedOFF();
-        break;
+            case DEBUG_COMMAND_LED_OFF:
+                debugLedOFF();
+            break;
 
-        case COMMAND_DO_TWI_WRITE:
-            handleTWIWriteCommand();
-        break;
+            case COMMAND_DO_TWI_WRITE:
+                handleTWIWriteCommand();
+            break;
 
-        case COMMAND_DO_TWI_READ:
-            handleTWIReadCommand();
-        break;
+            case COMMAND_DO_TWI_READ:
+                handleTWIReadCommand();
+            break;
 
-        // case COMMAND_READ_VOLTAGE:
-        //     handleReadVoltageCommand();
-        // break;
+            // case COMMAND_READ_VOLTAGE:
+            //     handleReadVoltageCommand();
+            // break;
 
-        default:
-            handleUnknownCommand();
+            default:
+                handleUnknownCommand(command);
+        }
     }
-
-    // Reset command
-    command = 0;
-    commandParamWPos = 0;
 }
 
 void handleTWIWriteCommand() {
@@ -271,7 +264,7 @@ void debugLedOFF() {PORTB &= ~(1<<PB0);}
 //     commandParamWPos = 0;
 // }
 
-void handleUnknownCommand() {
+void handleUnknownCommand(uint8_t command) {
     txBuffer.append2Buffer('u');
     txBuffer.append2Buffer('n');
     txBuffer.append2Buffer('k');
@@ -316,17 +309,8 @@ ISR(SPI_STC_vect) {
  * `-> UCSRB |= (1<<RXCIE);
  */
 ISR(USART_RXC_vect) {
-    if (command == 0) {
-        command = UDR;
-    }
-
-    // Read command parameter
-    else {
-        // Read command parameter only if buffer has free space, ignore otherwise
-        if (commandParamWPos < COMMAND_PARAM_BUFFER_SIZE) {
-            commandParam[commandParamWPos++] = UDR;
-        }
-    }
+    commandBuffer.append2Buffer(UDR);
+    commandBuffer.setReady(); // For now, expectiong just an 8bit command 
 }
 
 /**

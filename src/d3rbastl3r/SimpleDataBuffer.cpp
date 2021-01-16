@@ -111,6 +111,13 @@ class SimpleDataBuffer {
             return ready && readPos > 0;
         }
 
+        /**
+         * Returns the size of buffered data
+         */
+        uint8_t size() {
+            return writePos;
+        }
+
     private:
         volatile uint8_t buffer[BUFFER_SIZE];
         volatile uint8_t readPos;
