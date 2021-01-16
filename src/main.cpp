@@ -20,8 +20,6 @@
 #define TWI_SLAVE_ADDR 0x04
 // TWI
 
-// #define TX_BUFFER_SIZE 32
-
 #define COMMAND_PARAM_BUFFER_SIZE 2
 
 #define COMMAND_READ_VOLTAGE 0x01
@@ -31,15 +29,6 @@
 
 #define COMMAND_DO_TWI_READ 0x03
 #define COMMAND_DO_TWI_WRITE 0x04
-
-// struct TXBuffer {
-//     volatile uint8_t buffer[TX_BUFFER_SIZE];
-//     volatile uint8_t posRead;
-//     volatile uint8_t posWrite;
-//     volatile bool isReady; // true if the buffer is ready to transmit
-
-//     TXBuffer():posRead(0),posWrite(0),isReady(false){}
-// } txBuffer;
 
 volatile uint8_t command = 0;
 volatile uint8_t commandParam[COMMAND_PARAM_BUFFER_SIZE];
@@ -54,11 +43,8 @@ void handleTWIReadCommand();
 // void handleReadVoltageCommand();
 void handleUnknownCommand();
 
-// void append2TxBuffer(uint8_t);
-// void append2TxBufferAsStr(uint16_t);
-// void transmitFromTxBuffer();
-void transmitFromTxIfAvailable();
 
+void transmitFromTxIfAvailable();
 
 void initSPIMaster() {
     /* Set MOSI and SCK output, all others input */
@@ -142,17 +128,7 @@ int main(void) {
             if (!txBuffer.isStarted()) {
                 transmitFromTxIfAvailable();
             }
-            // if (txBuffer.isReady) {
-            //     txBuffer.isReady = false;
-            //     transmitFromTxBuffer();
-            // }
         }
-
-        // Reset tx buffer if transmission is completed
-        // if (txBuffer.posRead != 0 && txBuffer.posRead >= txBuffer.posWrite) {
-        //     txBuffer.posRead = 0;
-        //     txBuffer.posWrite = 0;
-        // }
     }
 
     return 0;
@@ -296,20 +272,6 @@ void debugLedOFF() {PORTB &= ~(1<<PB0);}
 // }
 
 void handleUnknownCommand() {
-    // append2TxBuffer('u');
-    // append2TxBuffer('n');
-    // append2TxBuffer('k');
-    // append2TxBuffer('n');
-    // append2TxBuffer('o');
-    // append2TxBuffer('w');
-    // append2TxBuffer('n');
-    // append2TxBuffer(':');
-    // append2TxBuffer('[');
-    // append2TxBuffer(command);
-    // append2TxBuffer(']');
-    // append2TxBuffer('\n');
-    // txBuffer.isReady = true; // Ready to print out
-
     txBuffer.append2Buffer('u');
     txBuffer.append2Buffer('n');
     txBuffer.append2Buffer('k');
@@ -326,59 +288,11 @@ void handleUnknownCommand() {
 }
 
 /**
- * Add byte to tx buffer. Ignore incoming data, if buffer is full
- */
-// void append2TxBuffer(uint8_t data) {
-//     // If tx buffer is full, data will be ignored
-//     if (txBuffer.posWrite >= TX_BUFFER_SIZE) {
-//         return;
-//     }
-
-//     txBuffer.buffer[txBuffer.posWrite++] = data;
-// }
-
-/**
- * Manual converter from uint16_t to char array and add this to the tx buffer.
- */
-// void append2TxBufferAsStr(uint16_t number) {
-//     uint16_t devider = 10000;
-
-//     // find the right size of the devider
-//     while ((number / devider) == 0 && devider >=  10) {
-//         devider /= 10;
-//     }
-
-//     uint16_t tempNumber = number;
-//     uint8_t numberPos = 0;
-//     for (; devider > 0; devider /= 10) {
-//         numberPos = tempNumber / devider;
-//         append2TxBuffer('0'+numberPos);
-//         tempNumber -= numberPos * devider;
-//     }
-// }
-
-/**
- * UART
- * Transmitting the next available byte via UART
- */
-// void transmitFromTxBuffer() {
-//     // If tx read pos is at the end of the buffer, nothing there to transmit
-//     if (txBuffer.posRead >= TX_BUFFER_SIZE) {
-//         return;
-//     }
-
-//     // Transmit if we have still data in buffer
-//     if (txBuffer.posRead < txBuffer.posWrite) {
-//         UDR = txBuffer.buffer[txBuffer.posRead++];
-//     }
-// }
-
-/**
  * UART
  * Transmitting the next available byte via UART if data is available
  */
 void transmitFromTxIfAvailable() {
-    if (txBuffer.isReady() && txBuffer.hasNext()) {
+    if (txBuffer.hasNext()) {
         UDR = txBuffer.getNext();
     }
 }
